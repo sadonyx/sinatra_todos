@@ -6,6 +6,36 @@ require "tilt/erubis"
 configure do
   enable :sessions
   set :session_secret, SecureRandom.hex(32)
+  set :erb, :escape_html => true
+end
+
+# Return an error message if the name is invalid. Return nil if name is valid.
+def error_for_list_name(name)
+  if !(1..100).cover? name.size
+    "List name must be between 1 and 100 characters."
+  elsif session[:lists].any? { |list| list[:name] == name && list[:id] != params[:id] } # The second condition of the `any?` method block allows the user to 'Save' the edited list, even if the list's name is = to its previous name
+    "The list's name must be unique."
+  end
+end
+
+def check_completion_of_all_todos(list)
+  list[:todos].all? { |todo| todo[:completed] == true }
+end
+
+def find_list_by_id(id)
+  list = session[:lists].find { |list| list.key(id) }
+  return list if list
+
+  session[:error] = "The specified list was not found."
+  redirect "/lists"
+end
+
+def error_for_todo(list, text)
+  if !(1..100).cover? text.size
+    "Todo name must be between 1 and 100 characters."
+  elsif list[:todos].any? { |todo| todo[:name] == text }
+    "The todo's name must be unique."
+  end
 end
 
 before do
@@ -104,6 +134,7 @@ post "/lists/:id/todos" do
   end
 end
 
+# Delete todo item
 post "/lists/:id/todos/:index/destroy" do
   @list = find_list_by_id(params[:id])
   index = params[:index].to_i
@@ -139,34 +170,8 @@ post "/lists/:id/todos/:index" do
   redirect "/lists/#{params[:id]}"
 end
 
-# Return an error message if the name is invalid. Return nil if name is valid.
-def error_for_list_name(name)
-  if !(1..100).cover? name.size
-    "List name must be between 1 and 100 characters."
-  elsif session[:lists].any? { |list| list[:name] == name && list[:id] != params[:id] } # The second condition of the `any?` method block allows the user to 'Save' the edited list, even if the list's name is = to its previous name
-    "The list's name must be unique."
-  end
-end
-
-def check_completion_of_all_todos(list)
-  list[:todos].all? { |todo| todo[:completed] == true }
-end
-
-def find_list_by_id(id)
-  session[:lists].find do |list|
-    list.key(id)
-  end
-end
-
-def error_for_todo(list, text)
-  if !(1..100).cover? text.size
-    "Todo name must be between 1 and 100 characters."
-  elsif list[:todos].any? { |todo| todo[:name] == text }
-    "The todo's name must be unique."
-  end
-end
-
 helpers do
+  # Counts number of todos completed within a list
   def todo_completion_counter(list)
     complete = 0
     list[:todos].each do |todo|
@@ -178,6 +183,7 @@ helpers do
     complete
   end
 
+  # Returns total size of todo list
   def todos_count(list)
     list[:todos].size
   end
