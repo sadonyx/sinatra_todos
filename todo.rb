@@ -40,7 +40,7 @@ def find_todo_by_id(list, todo_id)
   return todo if todo
 
   session[:error] = "The specified todo was not found."
-  redirect "/lists/#{id}"
+  redirect "/lists/#{list[:id]}"
 end
 
 def error_for_todo(list, text)

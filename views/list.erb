@@ -18,7 +18,7 @@
   <ul>
     <% sort_todos(@list[:todos]) do |todo| %>
         <li class="<%= todo[:completed] == true ? 'complete' : '' %>">
-
+          
           <form action="/lists/<%= @list[:id] %>/todos/<%= todo[:id] %>" method="post" class="check">
             <input type="hidden" name="completed" value="<%= !todo[:completed] %>" />
             <button type="submit">Complete</button>
@@ -29,8 +29,10 @@
             <button type="submit">Delete</button>
           </form>
         </li>
+        <p><%= todo %></p>
     <% end %>
   </ul>
+<%= @list %>
 
 </section>
 
