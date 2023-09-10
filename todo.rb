@@ -76,6 +76,7 @@ get "/lists/new" do
   erb :new_list, layout: :layout
 end
 
+# Render specific list page based on list id
 get "/lists/:id" do
   @list = find_list_by_id(params[:id])
   @title = @list[:name]
@@ -112,10 +113,13 @@ end
 # Delete a todo list
 post "/lists/:id/destroy" do
   list = find_list_by_id(params[:id])
-
   session[:lists].delete(list)
-  session[:success] = "'#{list[:name]}' has been deleted."
-  redirect "/lists"
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    "/lists"
+  else
+    session[:success] = "'#{list[:name]}' has been deleted."
+    redirect "/lists"
+  end
 end
 
 # Add a 'todo' to a todo list
@@ -139,9 +143,12 @@ post "/lists/:id/todos/:index/destroy" do
   @list = find_list_by_id(params[:id])
   index = params[:index].to_i
   deleted_item = @list[:todos].delete_at(index)[:name]
-
-  session[:success] = "'#{deleted_item}' todo was removed successfully."
-  redirect "/lists/#{params[:id]}"
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    status 204
+  else
+    session[:success] = "'#{deleted_item}' todo was removed successfully."
+    redirect "/lists/#{params[:id]}"
+  end
 end
 
 # Toggles completion status of all todos
