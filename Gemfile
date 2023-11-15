@@ -4,6 +4,7 @@ gem "sinatra"
 gem "sinatra-contrib"
 gem "erubis"
 gem "webrick"
+gem "pg"
 group :production do
   gem "puma"
 end
