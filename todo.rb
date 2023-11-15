@@ -3,12 +3,20 @@ require "sinatra/reloader" if development?
 require "sinatra/content_for"
 require "tilt/erubis"
 
-require_relative "session_persistence"
+require_relative "database_persistence"
 
 configure do
   enable :sessions
   set :session_secret, SecureRandom.hex(32)
   set :erb, :escape_html => true
+end
+
+def load_list(list_id)
+  list = @storage.find_list_by_id(list_id)
+  return list if list
+
+  session[:error] = "The specified list was not found."
+  redirect "/lists"
 end
 
 # Return an error message if the name is invalid. Return nil if name is valid.
@@ -23,13 +31,13 @@ end
 def error_for_todo(list_id, text)
   if !(1..100).cover? text.size
     "Todo name must be between 1 and 100 characters."
-  elsif @storage.find_list_by_id(list_id)[:todos].any? { |todo| todo[:name] == text }
+  elsif load_list(list_id)[:todos].any? { |todo| todo[:name] == text }
     "The todo's name must be unique."
   end
 end
 
 before do
-  @storage = SessionPersistence.new(session)
+  @storage = DatabasePersistence.new(logger)
 end
 
 get "/" do
@@ -68,7 +76,7 @@ end
 # Render specific list page based on list id
 get "/lists/:id" do
   list_id = params[:id]
-  @list = @storage.find_list_by_id(list_id)
+  @list = load_list(list_id)
   @title = @list[:name]
   erb :list, layout: :layout
 end
@@ -76,7 +84,7 @@ end
 # Edit an existing todo list
 get "/lists/:id/edit" do
   list_id = params[:id]
-  @list = find_list_by_id(list_id)
+  @list = load_list(list_id)
   @title = "Editing '#{@list[:name]}' list..."
   erb :edit_list, layout: :layout
 end
@@ -117,7 +125,7 @@ post "/lists/:id/todos" do
 
   error = error_for_todo(list_id, text)
   if error
-    @list = find_list_by_id(list_id)
+    @list = load_list(list_id)
     session[:error] = error
     erb :list, layout: :layout
   else
