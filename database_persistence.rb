@@ -2,7 +2,11 @@ require "pg"
 
 class DatabasePersistence
   def initialize(logger)
-    @db = PG.connect(dbname: "todos")
+    @db = if Sinatra::Base.production?
+        PG.connect(ENV['DATABASE_URL'])
+      else
+        PG.connect(dbname: "todos")
+      end
     @logger = logger
   end
 
@@ -11,26 +15,29 @@ class DatabasePersistence
     @db.exec_params(statement, params)
   end
 
-  def list_name(id)
-    # find_list_by_id(id)[:name]
+  def list_name(list_id)
+    sql_lists = "SELECT name FROM lists WHERE id = $1"
+    query(sql_lists, list_id).first["name"]
   end
 
   def list_id(list_name)
-    # all_lists.find {|list| list[:name] == list_name }[:id]
+    sql_lists = "SELECT id FROM lists WHERE name = $1"
+    query(sql_lists, list_name).first["id"]
   end
 
-  def list_status(id)
-    # find_list_by_id(id)[:all_completed]
+  def list_status(list_id)
+    sql_lists = "SELECT all_completed FROM lists WHERE id = $1"
+    query(sql_lists, list_id).first["all_completed"] == 't'
   end
 
   def todo_status(list_id, todo_id)
-    # list = find_list_by_id(list_id)
-    # find_todo_by_id(list, todo_id)[:completed]
+    sql_lists = "SELECT completed FROM todos WHERE id = $1 AND list_id = $2"
+    query(sql_lists, todo_id, list_id).first["completed"]
   end
 
   def todo_name(list_id, todo_id)
-    # list = find_list_by_id(list_id)
-    # find_todo_by_id(list, todo_id)[:name]
+    sql_lists = "SELECT name FROM todos WHERE id = $1 AND list_id = $2"
+    query(sql_lists, todo_id, list_id).first["name"]
   end
 
   def all_lists
@@ -45,52 +52,54 @@ class DatabasePersistence
   end
 
   def create_new_list(list_name)
-    # list = { name: list_name, id: SecureRandom.hex(2), todos: [], all_completed: false }
-    # @session[:lists] << list
+    sql_lists = "INSERT INTO lists (name) VALUES ($1)"
+    query(sql_lists, list_name)
   end
 
-  def delete_list(id)
-    # list = find_list_by_id(id)
-    # @session[:lists].delete(list)
+  def delete_list(list_id)
+    sql_lists = "DELETE FROM lists WHERE id = $1"
+    query(sql_lists, list_id)
   end
 
-  def update_list_name(id, new_name)
-    # list = find_list_by_id(id)
-    # list[:name] = new_name
+  def update_list_name(list_id, new_name)
+    sql_lists = "UPDATE lists SET name = $1 WHERE id = $2"
+    query(sql_lists, new_name, list_id)
   end
 
   def create_new_todo(list_id, todo_name)
-    # list = find_list_by_id(list_id)
-    # todo_id = next_todo_id(list[:todos])
-    # list[:todos] << { id: todo_id, name: todo_name, completed: false } # Append todo object to todo array of list object
+    sql_todos = "INSERT INTO todos (name, list_id) VALUES ($1, $2)"
+    query(sql_todos, todo_name, list_id)
   end
 
   def delete_todo(list_id, todo_id)
-    # list = find_list_by_id(list_id)
-    # todo = find_todo_by_id(list, todo_id)
-    # list[:todos].delete(todo)[:name]
+    sql_todos = "DELETE FROM todos WHERE id = $1 AND list_id = $2"
+    query(sql_todos, todo_id, list_id)
   end
 
   def toggle_todo_status(list_id, todo_id, is_completed)
-    # list = find_list_by_id(list_id)
-    # todo = find_todo_by_id(list, todo_id)
+    sql_todos = "UPDATE todos SET completed = $1 WHERE id = $2 AND list_id = $3"
+    query(sql_todos, is_completed, todo_id, list_id)
 
-    # todo[:completed] = is_completed
-    # list[:all_completed] = check_completion_of_all_todos(list)
+    auto_update_list_all_completed(list_id)
   end
 
-  def toggle_all_todos_status(id)
-    # list = find_list_by_id(id)
-    # list[:all_completed] = !list[:all_completed]
-    
-    # list[:todos].each do |todo|
-    #   todo[:completed] = list[:all_completed] ? true : false
-    # end
+  def toggle_all_todos_status(list_id)
+    list_completion_status = is_list_complete?(list_id)
+    sql_todos = "UPDATE todos SET completed = $1 WHERE list_id = $2"
+    query(sql_todos, !list_completion_status, list_id)
+    auto_update_list_all_completed(list_id)
   end
 
-  def is_list_complete?(id)
-    # list = find_list_by_id(id)
-    # list[:todos].all? { |todo| todo[:completed] == true }
+  def is_list_complete?(list_id)
+    sql_lists = <<-SQL
+      SELECT CASE 
+        WHEN EXISTS(
+          SELECT * FROM todos WHERE list_id = $1 AND completed = 'f'
+        ) THEN 'f'
+        ELSE 't'
+      END AS all_completed
+    SQL
+    query(sql_lists, list_id).first["all_completed"] == 't'
   end
 
   def find_list_by_id(list_id)
@@ -100,10 +109,16 @@ class DatabasePersistence
     todos = find_todos_for_list(list_id)
 
     tuple = result.first
-    {id: tuple["id"], name: tuple["name"], todos: todos}
+    {id: tuple["id"], name: tuple["name"], todos: todos, all_completed: (tuple["all_completed"] == 't')}
   end
 
   private
+
+  def auto_update_list_all_completed(list_id)
+    list_completion_status = is_list_complete?(list_id)
+    sql_lists = "UPDATE lists SET all_completed = $1 WHERE id = $2"
+    query(sql_lists, list_completion_status, list_id)
+  end
 
   def find_todos_for_list(list_id)
     sql_todos = "SELECT * FROM todos WHERE list_id = $1"
@@ -114,14 +129,5 @@ class DatabasePersistence
           name: todo["name"], 
           completed: (todo["completed"] == 't') }
       end
-  end
-
-  def check_completion_of_all_todos(list)
-    # list[:todos].all? { |todo| todo[:completed] == true }
-  end
-
-  def find_todo_by_id(list, todo_id)
-    # todo = list[:todos].find { |todo| todo.key(todo_id) }
-    # return todo if todo
   end
 end

@@ -1,5 +1,4 @@
 require "sinatra"
-require "sinatra/reloader" if development?
 require "sinatra/content_for"
 require "tilt/erubis"
 
@@ -9,6 +8,11 @@ configure do
   enable :sessions
   set :session_secret, SecureRandom.hex(32)
   set :erb, :escape_html => true
+end
+
+configure(:development) do
+  require "sinatra/reloader"
+  also_reload "database_persistence.rb"
 end
 
 def load_list(list_id)
@@ -77,6 +81,7 @@ end
 get "/lists/:id" do
   list_id = params[:id]
   @list = load_list(list_id)
+  puts @list[:all_completed]
   @title = @list[:name]
   erb :list, layout: :layout
 end
@@ -113,7 +118,7 @@ post "/lists/:id/destroy" do
   if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
     "/lists"
   else
-    session[:success] = "'#{deleted_list}' has been deleted."
+    session[:success] = "The todo '#{deleted_list}' has been deleted."
     redirect "/lists"
   end
 end
@@ -178,7 +183,6 @@ helpers do
         complete += 1
        end
     end
-
     complete
   end
 
