@@ -41,13 +41,23 @@ class DatabasePersistence
   end
 
   def all_lists
-    sql_lists = "SELECT * FROM lists"
+    sql_lists = <<-SQL
+      SELECT lists.*,
+      COUNT(todos.id) AS todos_count,
+      COUNT(NULLIF(todos.completed, false)) AS todos_completed_count
+      FROM lists
+      LEFT JOIN todos ON todos.list_id = lists.id
+      GROUP BY lists.id
+      ORDER BY lists.name;
+    SQL
     result_lists = query(sql_lists) # [{id:, name:, todos:}]
 
     result_lists.map do |list|
-      list_id = list["id"].to_i
-      todos = find_todos_for_list(list_id)
-      { id: list_id, name: list["name"], todos: todos, all_completed: (list["all_completed"] == 't') }
+      { id: list["id"].to_i, 
+        name: list["name"], 
+        todos_count: list["todos_count"], 
+        todos_completed_count: list["todos_completed_count"], 
+        all_completed: (list["all_completed"] == 't') }
     end
   end
 

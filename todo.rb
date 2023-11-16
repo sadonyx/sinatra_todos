@@ -175,22 +175,6 @@ post "/lists/:id/todos/:todo_id" do
 end
 
 helpers do
-  # Counts number of todos completed within a list
-  def todo_completion_counter(list)
-    complete = 0
-    list[:todos].each do |todo|
-       if todo[:completed] == true
-        complete += 1
-       end
-    end
-    complete
-  end
-
-  # Returns total size of todo list
-  def todos_count(list)
-    list[:todos].size
-  end
-
   def sort_todos(todos, &block)
     complete_todos, incomplete_todos = todos.partition { |todo| todo[:completed] }
 

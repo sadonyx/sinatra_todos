@@ -3,7 +3,7 @@
     <li class="<%= list[:all_completed] ? 'complete' : '' %>">
       <a href=<%= "lists/#{list[:id]}" %>>
         <h2><%= list[:name] %></h2>
-        <p><%= todo_completion_counter(list) %> / <%= todos_count(list) %></p>
+        <p><%= list[:todos_completed_count] %> / <%= list[:todos_count] %></p>
       </a>
     </li>
   <% end %>
